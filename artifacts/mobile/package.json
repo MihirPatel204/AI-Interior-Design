@@ -63,6 +63,7 @@
     "expo-media-library": "~18.2.1",
     "lucide-react-native": "^1.8.0",
     "moti": "^0.30.0",
+    "react-native-purchases": "^10.0.1",
     "replicate": "^1.4.0"
   }
 }
