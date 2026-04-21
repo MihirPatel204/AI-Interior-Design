@@ -28,6 +28,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ComparisonSlider } from "@/components/ComparisonSlider";
 import { theme } from "@/constants/theme";
 import {
   generateRedesign,
@@ -36,6 +37,11 @@ import {
   NoImageReturnedError,
   SafetyBlockError,
 } from "@/services/renderService";
+import {
+  hasFreeRenderRemaining,
+  incrementFreeRenderCount,
+  isUserPro,
+} from "@/services/subscriptionService";
 
 interface Section {
   title: string;
@@ -104,17 +110,27 @@ export default function ResultsScreen() {
   const [generated, setGenerated] = useState<{ uri: string; mimeType: string } | null>(
     null,
   );
-  const [showOriginal, setShowOriginal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const handleGenerate = async () => {
     if (!imageUri || generating) return;
+
+    // Pro / free-tier gate.
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const pro = await isUserPro();
+    if (!pro) {
+      const allowed = await hasFreeRenderRemaining();
+      if (!allowed) {
+        router.push("/paywall");
+        return;
+      }
+    }
+
     try {
       setGenerating(true);
       setGenerated(null);
       setSaved(false);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       const { base64, mimeType } = await imageUriToBase64(imageUri);
       const result = await generateRedesign(base64, selectedStyle, mimeType);
@@ -123,6 +139,9 @@ export default function ResultsScreen() {
         uri: `data:${result.mimeType};base64,${result.base64}`,
         mimeType: result.mimeType,
       });
+      if (!pro) {
+        await incrementFreeRenderCount();
+      }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -314,87 +333,64 @@ export default function ResultsScreen() {
           style={styles.previewWrap}
         >
           {imageUri ? (
-            <View style={styles.previewBox}>
-              {/* Always-rendered base layer: ORIGINAL photo. */}
-              <Image
-                source={{ uri: imageUri }}
-                style={StyleSheet.absoluteFillObject}
-                contentFit="cover"
-                transition={200}
-              />
-
-              {/* AI image on top — hidden while user holds to compare. */}
-              {generated && !showOriginal ? (
+            generated ? (
+              <View>
+                <ComparisonSlider
+                  beforeUri={imageUri}
+                  afterUri={generated.uri}
+                  aspectRatio={4 / 3}
+                />
+                <Text style={styles.dragHint}>
+                  Drag the handle to compare
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.previewBox}>
                 <Image
-                  source={{ uri: generated.uri }}
+                  source={{ uri: imageUri }}
                   style={StyleSheet.absoluteFillObject}
                   contentFit="cover"
-                  transition={250}
-                  cachePolicy="memory-disk"
+                  transition={200}
                 />
-              ) : null}
-
-              {/* Press-and-hold gesture surface (only after generation). */}
-              {generated ? (
-                <Pressable
-                  onPressIn={() => {
-                    Haptics.selectionAsync();
-                    setShowOriginal(true);
-                  }}
-                  onPressOut={() => setShowOriginal(false)}
-                  style={StyleSheet.absoluteFillObject}
-                />
-              ) : null}
-
-              {/* Generating overlay: shimmering glass effect. */}
-              <AnimatePresence>
-                {generating ? (
-                  <MotiView
-                    key="gen-overlay"
-                    from={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ type: "timing", duration: 250 }}
-                    style={StyleSheet.absoluteFillObject}
-                  >
-                    <BlurView
-                      intensity={50}
-                      tint="dark"
-                      style={StyleSheet.absoluteFillObject}
-                    />
-                    {/* Shimmering sweep */}
+                <AnimatePresence>
+                  {generating ? (
                     <MotiView
-                      from={{ translateX: -260, opacity: 0.0 }}
-                      animate={{ translateX: 260, opacity: 0.55 }}
-                      transition={{
-                        loop: true,
-                        type: "timing",
-                        duration: 1400,
-                      }}
-                      style={styles.shimmerBar}
-                    />
-                    <View style={styles.generatingCenter}>
-                      <ActivityIndicator
-                        size="large"
-                        color={theme.colors.accent}
+                      key="gen-overlay"
+                      from={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ type: "timing", duration: 250 }}
+                      style={StyleSheet.absoluteFillObject}
+                    >
+                      <BlurView
+                        intensity={50}
+                        tint="dark"
+                        style={StyleSheet.absoluteFillObject}
                       />
-                      <Text style={styles.generatingText}>
-                        Crafting your {selectedStyle} redesign…
-                      </Text>
-                    </View>
-                  </MotiView>
-                ) : null}
-              </AnimatePresence>
-
-              {/* Compare hint badge */}
-              {generated ? (
-                <View style={styles.compareHint} pointerEvents="none">
-                  <Text style={styles.compareHintText}>
-                    {showOriginal ? "Original" : "Hold to see before"}
-                  </Text>
-                </View>
-              ) : null}
-            </View>
+                      <MotiView
+                        from={{ translateX: -260, opacity: 0.0 }}
+                        animate={{ translateX: 260, opacity: 0.55 }}
+                        transition={{
+                          loop: true,
+                          type: "timing",
+                          duration: 1400,
+                        }}
+                        style={styles.shimmerBar}
+                      />
+                      <View style={styles.generatingCenter}>
+                        <ActivityIndicator
+                          size="large"
+                          color={theme.colors.accent}
+                        />
+                        <Text style={styles.generatingText}>
+                          Crafting your {selectedStyle} redesign…
+                        </Text>
+                      </View>
+                    </MotiView>
+                  ) : null}
+                </AnimatePresence>
+              </View>
+            )
           ) : null}
 
           {/* Save Design */}
@@ -608,24 +604,14 @@ const styles = StyleSheet.create({
     textAlign: "center",
     letterSpacing: 0.2,
   },
-  compareHint: {
-    position: "absolute",
-    bottom: 12,
-    alignSelf: "center",
-    left: 0,
-    right: 0,
-    alignItems: "center",
-  },
-  compareHintText: {
+  dragHint: {
+    marginTop: 10,
     fontFamily: "Inter_500Medium",
     fontSize: 12,
-    color: "#FFFFFF",
-    letterSpacing: 0.4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: theme.radius.pill,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    overflow: "hidden",
+    color: "rgba(255,255,255,0.6)",
+    textAlign: "center",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
   saveButton: {
     flexDirection: "row",
