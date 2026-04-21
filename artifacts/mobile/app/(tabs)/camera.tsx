@@ -7,6 +7,7 @@ import {
 } from "expo-camera";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
+import { router } from "expo-router";
 import { MotiView } from "moti";
 import {
   Camera as CameraIcon,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react-native";
 import React, { useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Platform,
   Pressable,
@@ -28,6 +30,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
+import { analyzeRoomWithGemini, MissingApiKeyError } from "@/services/aiService";
 
 export default function CameraScreen() {
   const insets = useSafeAreaInsets();
@@ -36,7 +39,32 @@ export default function CameraScreen() {
   const [flash, setFlash] = useState<FlashMode>("off");
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const cameraRef = useRef<CameraView>(null);
+
+  const handleAnalyze = async () => {
+    if (!photoUri || isAnalyzing) return;
+    try {
+      setIsAnalyzing(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const analysis = await analyzeRoomWithGemini(photoUri);
+      setIsAnalyzing(false);
+      setPhotoUri(null);
+      router.push({
+        pathname: "/results",
+        params: { result: analysis.raw, imageUri: photoUri },
+      });
+    } catch (err) {
+      setIsAnalyzing(false);
+      const message =
+        err instanceof MissingApiKeyError
+          ? err.message
+          : err instanceof Error
+            ? `We couldn't reach Gemini. ${err.message}`
+            : "Something went wrong while analyzing your room.";
+      Alert.alert("Analysis failed", message);
+    }
+  };
 
   const topPad = Math.max(insets.top, 16);
   const bottomPad = Math.max(insets.bottom, 24);
@@ -153,21 +181,38 @@ export default function CameraScreen() {
           </Pressable>
 
           <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              Alert.alert(
-                "Analyze Room",
-                "AI analysis will be triggered here.",
-              );
-            }}
+            onPress={handleAnalyze}
+            disabled={isAnalyzing}
             style={({ pressed }) => [
               styles.previewActionPrimary,
               pressed && { opacity: 0.9 },
+              isAnalyzing && { opacity: 0.7 },
             ]}
           >
             <Text style={styles.previewActionPrimaryLabel}>Analyze Room</Text>
           </Pressable>
         </BlurView>
+
+        {isAnalyzing ? (
+          <View style={styles.loadingOverlay}>
+            <BlurView
+              intensity={60}
+              tint="dark"
+              style={StyleSheet.absoluteFillObject}
+            />
+            <MotiView
+              from={{ opacity: 0, translateY: 8 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              transition={{ type: "timing", duration: 300 }}
+              style={styles.loadingCard}
+            >
+              <ActivityIndicator size="large" color={theme.colors.accent} />
+              <Text style={styles.loadingText}>
+                Gemini is redesigning your space…
+              </Text>
+            </MotiView>
+          </View>
+        ) : null}
       </View>
     );
   }
@@ -439,6 +484,31 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     fontSize: 15,
     color: theme.colors.primary,
+    letterSpacing: 0.2,
+  },
+
+  // Loading overlay
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: theme.spacing.xl,
+  },
+  loadingCard: {
+    alignItems: "center",
+    gap: theme.spacing.md,
+    paddingHorizontal: theme.spacing.xl,
+    paddingVertical: theme.spacing.xl,
+    borderRadius: theme.radius.lg,
+    backgroundColor: "rgba(20,20,20,0.55)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+  loadingText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 15,
+    color: "#FFFFFF",
+    textAlign: "center",
     letterSpacing: 0.2,
   },
 });
