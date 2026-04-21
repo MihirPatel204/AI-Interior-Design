@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "a_kJS6aviQ5hIzgA4mQAs"
+uri = "file://artifacts/mobile/assets/images/icon.png"
+type = "image"
+title = "InteriorAI app icon"
