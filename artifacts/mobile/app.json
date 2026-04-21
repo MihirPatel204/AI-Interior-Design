@@ -40,6 +40,14 @@
         {
           "photosPermission": "InteriorAI needs access to your photos so you can pick a room to redesign."
         }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "InteriorAI saves your AI-generated room redesigns to your photo library.",
+          "savePhotosPermission": "InteriorAI saves your AI-generated room redesigns to your photo library.",
+          "isAccessMediaLocationEnabled": false
+        }
       ]
     ],
     "experiments": {

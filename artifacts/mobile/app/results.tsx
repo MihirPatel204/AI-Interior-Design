@@ -1,17 +1,25 @@
 import { BlurView } from "expo-blur";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
+import * as MediaLibrary from "expo-media-library";
 import { Stack, useLocalSearchParams, router } from "expo-router";
 import {
   ArrowLeft,
+  Check,
+  Download,
   Lightbulb,
   Move,
   Palette,
   Sofa,
   Sparkles,
+  Wand2,
 } from "lucide-react-native";
-import { MotiView } from "moti";
-import React, { useMemo } from "react";
+import { AnimatePresence, MotiView } from "moti";
+import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -21,6 +29,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
+import {
+  generateRedesign,
+  imageUriToBase64,
+  MissingApiKeyError,
+  NoImageReturnedError,
+  SafetyBlockError,
+} from "@/services/renderService";
 
 interface Section {
   title: string;
@@ -28,16 +43,22 @@ interface Section {
   icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
 }
 
+const STYLES: { id: string; label: string }[] = [
+  { id: "Japandi", label: "Japandi" },
+  { id: "Industrial", label: "Industrial" },
+  { id: "Boho", label: "Boho" },
+  { id: "Scandinavian", label: "Scandi" },
+  { id: "Mid-Century Modern", label: "Mid-Century" },
+  { id: "Minimalist", label: "Minimalist" },
+];
+
 function parseAnalysis(raw: string): Section[] {
   const text = raw.trim();
   if (!text) return [];
-
-  // Split on numbered headings (1. / 2. / 3.) — Gemini's prompt asks for that.
   const parts = text
     .split(/(?:^|\n)\s*(\d+)[.)]\s+/)
     .filter((p) => p && p.trim().length > 0);
 
-  // After splitting we get an interleaved [num, content, num, content...]
   const blocks: string[] = [];
   for (let i = 0; i < parts.length; i++) {
     const p = parts[i];
@@ -64,7 +85,6 @@ function parseAnalysis(raw: string): Section[] {
     }
   });
 
-  // Fallback if parsing didn't split cleanly: one card with the whole text.
   if (sections.length === 0) {
     sections.push({ title: "Designer's notes", body: text, icon: Sparkles });
   }
@@ -78,6 +98,79 @@ export default function ResultsScreen() {
   const imageUri = typeof params.imageUri === "string" ? params.imageUri : undefined;
 
   const sections = useMemo(() => parseAnalysis(raw), [raw]);
+
+  const [selectedStyle, setSelectedStyle] = useState<string>(STYLES[0]!.id);
+  const [generating, setGenerating] = useState(false);
+  const [generated, setGenerated] = useState<{ uri: string; mimeType: string } | null>(
+    null,
+  );
+  const [showOriginal, setShowOriginal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const handleGenerate = async () => {
+    if (!imageUri || generating) return;
+    try {
+      setGenerating(true);
+      setGenerated(null);
+      setSaved(false);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      const { base64, mimeType } = await imageUriToBase64(imageUri);
+      const result = await generateRedesign(base64, selectedStyle, mimeType);
+
+      setGenerated({
+        uri: `data:${result.mimeType};base64,${result.base64}`,
+        mimeType: result.mimeType,
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      let message =
+        "Something went wrong while generating your redesign. Please try again.";
+      if (err instanceof SafetyBlockError) message = err.message;
+      else if (err instanceof MissingApiKeyError) message = err.message;
+      else if (err instanceof NoImageReturnedError) message = err.message;
+      else if (err instanceof Error)
+        message = `We couldn't reach Gemini. ${err.message}`;
+      Alert.alert("Redesign failed", message);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!generated || saving) return;
+    try {
+      setSaving(true);
+      const perm = await MediaLibrary.requestPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          "Permission needed",
+          "Please allow photo library access to save your redesign.",
+        );
+        return;
+      }
+
+      const ext = generated.mimeType.includes("png") ? "png" : "jpg";
+      const filePath = `${FileSystem.cacheDirectory}interiorai-${Date.now()}.${ext}`;
+      const base64 = generated.uri.split(",")[1] ?? "";
+      await FileSystem.writeAsStringAsync(filePath, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      await MediaLibrary.saveToLibraryAsync(filePath);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setSaved(true);
+    } catch (err) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      const message =
+        err instanceof Error ? err.message : "Couldn't save the image.";
+      Alert.alert("Save failed", message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <View style={styles.root}>
@@ -93,7 +186,6 @@ export default function ResultsScreen() {
       ) : null}
       <View style={[StyleSheet.absoluteFillObject, styles.overlay]} />
 
-      {/* Header */}
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
         <Pressable
           onPress={() => router.back()}
@@ -151,19 +243,192 @@ export default function ResultsScreen() {
             </MotiView>
           );
         })}
+
+        {/* Magic Redesign block */}
+        <MotiView
+          from={{ opacity: 0, translateY: 12 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: "timing", duration: 450, delay: 350 }}
+          style={{ marginTop: theme.spacing.lg }}
+        >
+          <Text style={styles.sectionLabel}>Magic Redesign</Text>
+          <Text style={styles.sectionHint}>
+            Pick a style. Gemini will reimagine your room while keeping the
+            walls and windows intact.
+          </Text>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.styleRow}
+          >
+            {STYLES.map((s) => {
+              const active = selectedStyle === s.id;
+              return (
+                <Pressable
+                  key={s.id}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setSelectedStyle(s.id);
+                  }}
+                  style={({ pressed }) => [
+                    styles.styleChip,
+                    active && styles.styleChipActive,
+                    pressed && { opacity: 0.8 },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.styleChipLabel,
+                      active && styles.styleChipLabelActive,
+                    ]}
+                  >
+                    {s.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          <Pressable
+            onPress={handleGenerate}
+            disabled={generating || !imageUri}
+            style={({ pressed }) => [
+              styles.generateButton,
+              (generating || !imageUri) && { opacity: 0.6 },
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <Wand2 size={18} color={theme.colors.primary} strokeWidth={2.2} />
+            <Text style={styles.generateButtonLabel}>
+              {generating ? "Reimagining…" : "Generate Visual"}
+            </Text>
+          </Pressable>
+        </MotiView>
+
+        {/* Preview / generated image area */}
+        <MotiView
+          from={{ opacity: 0, translateY: 12 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: "timing", duration: 450, delay: 450 }}
+          style={styles.previewWrap}
+        >
+          {imageUri ? (
+            <View style={styles.previewBox}>
+              {/* Always-rendered base layer: ORIGINAL photo. */}
+              <Image
+                source={{ uri: imageUri }}
+                style={StyleSheet.absoluteFillObject}
+                contentFit="cover"
+                transition={200}
+              />
+
+              {/* AI image on top — hidden while user holds to compare. */}
+              {generated && !showOriginal ? (
+                <Image
+                  source={{ uri: generated.uri }}
+                  style={StyleSheet.absoluteFillObject}
+                  contentFit="cover"
+                  transition={250}
+                  cachePolicy="memory-disk"
+                />
+              ) : null}
+
+              {/* Press-and-hold gesture surface (only after generation). */}
+              {generated ? (
+                <Pressable
+                  onPressIn={() => {
+                    Haptics.selectionAsync();
+                    setShowOriginal(true);
+                  }}
+                  onPressOut={() => setShowOriginal(false)}
+                  style={StyleSheet.absoluteFillObject}
+                />
+              ) : null}
+
+              {/* Generating overlay: shimmering glass effect. */}
+              <AnimatePresence>
+                {generating ? (
+                  <MotiView
+                    key="gen-overlay"
+                    from={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ type: "timing", duration: 250 }}
+                    style={StyleSheet.absoluteFillObject}
+                  >
+                    <BlurView
+                      intensity={50}
+                      tint="dark"
+                      style={StyleSheet.absoluteFillObject}
+                    />
+                    {/* Shimmering sweep */}
+                    <MotiView
+                      from={{ translateX: -260, opacity: 0.0 }}
+                      animate={{ translateX: 260, opacity: 0.55 }}
+                      transition={{
+                        loop: true,
+                        type: "timing",
+                        duration: 1400,
+                      }}
+                      style={styles.shimmerBar}
+                    />
+                    <View style={styles.generatingCenter}>
+                      <ActivityIndicator
+                        size="large"
+                        color={theme.colors.accent}
+                      />
+                      <Text style={styles.generatingText}>
+                        Crafting your {selectedStyle} redesign…
+                      </Text>
+                    </View>
+                  </MotiView>
+                ) : null}
+              </AnimatePresence>
+
+              {/* Compare hint badge */}
+              {generated ? (
+                <View style={styles.compareHint} pointerEvents="none">
+                  <Text style={styles.compareHintText}>
+                    {showOriginal ? "Original" : "Hold to see before"}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
+          {/* Save Design */}
+          {generated ? (
+            <Pressable
+              onPress={handleSave}
+              disabled={saving}
+              style={({ pressed }) => [
+                styles.saveButton,
+                saved && styles.saveButtonSaved,
+                (saving || saved) && { opacity: 0.85 },
+                pressed && { opacity: 0.85 },
+              ]}
+            >
+              {saved ? (
+                <Check size={18} color="#FFFFFF" strokeWidth={2.2} />
+              ) : (
+                <Download size={18} color="#FFFFFF" strokeWidth={2.2} />
+              )}
+              <Text style={styles.saveButtonLabel}>
+                {saved ? "Saved to Photos" : saving ? "Saving…" : "Save Design"}
+              </Text>
+            </Pressable>
+          ) : null}
+        </MotiView>
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: "#0a0a0a",
-  },
-  overlay: {
-    backgroundColor: "rgba(10,10,10,0.72)",
-  },
+  root: { flex: 1, backgroundColor: "#0a0a0a" },
+  overlay: { backgroundColor: "rgba(10,10,10,0.72)" },
+
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -187,11 +452,13 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     letterSpacing: 0.3,
   },
+
   scroll: {
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.md,
     gap: theme.spacing.md,
   },
+
   eyebrow: {
     fontFamily: "Inter_500Medium",
     fontSize: 12,
@@ -207,6 +474,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     marginBottom: theme.spacing.lg,
   },
+
   cardWrap: {
     marginBottom: theme.spacing.md,
     borderRadius: theme.radius.lg,
@@ -246,5 +514,138 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     color: "rgba(255,255,255,0.86)",
+  },
+
+  // Magic Redesign block
+  sectionLabel: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 20,
+    color: "#FFFFFF",
+    letterSpacing: -0.2,
+    marginBottom: 6,
+  },
+  sectionHint: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    lineHeight: 19,
+    color: "rgba(255,255,255,0.65)",
+    marginBottom: theme.spacing.md,
+  },
+  styleRow: {
+    gap: theme.spacing.sm,
+    paddingVertical: 4,
+    paddingRight: theme.spacing.md,
+  },
+  styleChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: theme.radius.pill,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.16)",
+  },
+  styleChipActive: {
+    backgroundColor: theme.colors.accent,
+    borderColor: theme.colors.accent,
+  },
+  styleChipLabel: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 14,
+    color: "rgba(255,255,255,0.85)",
+    letterSpacing: 0.2,
+  },
+  styleChipLabelActive: {
+    color: theme.colors.primary,
+    fontFamily: "Inter_700Bold",
+  },
+  generateButton: {
+    marginTop: theme.spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: theme.spacing.sm,
+    paddingVertical: 14,
+    borderRadius: theme.radius.pill,
+    backgroundColor: theme.colors.accent,
+  },
+  generateButtonLabel: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 15,
+    color: theme.colors.primary,
+    letterSpacing: 0.2,
+  },
+
+  // Preview area
+  previewWrap: { marginTop: theme.spacing.lg, gap: theme.spacing.md },
+  previewBox: {
+    width: "100%",
+    aspectRatio: 4 / 3,
+    borderRadius: theme.radius.lg,
+    overflow: "hidden",
+    backgroundColor: "#111",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.16)",
+  },
+  shimmerBar: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: 120,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    transform: [{ skewX: "-20deg" }],
+  },
+  generatingCenter: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+  },
+  generatingText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 14,
+    color: "#FFFFFF",
+    textAlign: "center",
+    letterSpacing: 0.2,
+  },
+  compareHint: {
+    position: "absolute",
+    bottom: 12,
+    alignSelf: "center",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  compareHintText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 12,
+    color: "#FFFFFF",
+    letterSpacing: 0.4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: theme.radius.pill,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    overflow: "hidden",
+  },
+  saveButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: theme.spacing.sm,
+    paddingVertical: 14,
+    borderRadius: theme.radius.pill,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.22)",
+  },
+  saveButtonSaved: {
+    backgroundColor: "rgba(46,160,67,0.55)",
+    borderColor: "rgba(46,160,67,0.85)",
+  },
+  saveButtonLabel: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 15,
+    color: "#FFFFFF",
+    letterSpacing: 0.2,
   },
 });
