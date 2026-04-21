@@ -56,7 +56,10 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "expo-camera": "~17.0.10",
+    "expo-file-system": "~19.0.21",
+    "expo-image-manipulator": "~14.0.8",
     "lucide-react-native": "^1.8.0",
     "moti": "^0.30.0"
   }
