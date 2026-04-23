@@ -7,10 +7,12 @@ import {
 } from "expo-camera";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { MotiView } from "moti";
 import {
   Camera as CameraIcon,
+  ImagePlus,
   RotateCcw,
   SwitchCamera,
   X,
@@ -42,6 +44,26 @@ export default function CameraScreen() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const cameraRef = useRef<CameraView>(null);
 
+  const pickFromLibrary = async () => {
+    Haptics.selectionAsync();
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.9,
+        allowsEditing: false,
+        selectionLimit: 1,
+      });
+      if (!result.canceled && result.assets?.[0]?.uri) {
+        setPhotoUri(result.assets[0].uri);
+      }
+    } catch (err) {
+      Alert.alert(
+        "Couldn't open photos",
+        err instanceof Error ? err.message : "Unable to load photo library.",
+      );
+    }
+  };
+
   const handleAnalyze = async () => {
     if (!photoUri || isAnalyzing) return;
     try {
@@ -49,10 +71,11 @@ export default function CameraScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const analysis = await analyzeRoomWithGemini(photoUri);
       setIsAnalyzing(false);
+      const captured = photoUri;
       setPhotoUri(null);
       router.push({
         pathname: "/results",
-        params: { result: analysis.raw, imageUri: photoUri },
+        params: { result: analysis.raw, imageUri: captured },
       });
     } catch (err) {
       setIsAnalyzing(false);
@@ -69,69 +92,9 @@ export default function CameraScreen() {
   const topPad = Math.max(insets.top, 16);
   const bottomPad = Math.max(insets.bottom, 24);
 
-  // Permission still loading
-  if (!permission) {
-    return <View style={styles.root} />;
-  }
-
-  // Permission denied / not asked yet
-  if (!permission.granted) {
-    return (
-      <View style={[styles.root, styles.permissionRoot]}>
-        <MotiView
-          from={{ opacity: 0, translateY: 8 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          transition={{ type: "timing", duration: 400 }}
-          style={styles.permissionContent}
-        >
-          <View style={styles.permissionIcon}>
-            <CameraIcon
-              size={28}
-              color={theme.colors.primary}
-              strokeWidth={1.75}
-            />
-          </View>
-          <Text style={styles.permissionTitle}>Camera access</Text>
-          <Text style={styles.permissionSubtitle}>
-            InteriorAI needs your camera to capture rooms and reimagine them.
-          </Text>
-          <Pressable
-            onPress={requestPermission}
-            style={({ pressed }) => [
-              styles.permissionButton,
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <Text style={styles.permissionButtonLabel}>Grant access</Text>
-          </Pressable>
-        </MotiView>
-      </View>
-    );
-  }
-
-  // Web fallback — expo-camera has limited web support
-  if (Platform.OS === "web") {
-    return (
-      <View style={[styles.root, styles.permissionRoot]}>
-        <View style={styles.permissionContent}>
-          <View style={styles.permissionIcon}>
-            <CameraIcon
-              size={28}
-              color={theme.colors.primary}
-              strokeWidth={1.75}
-            />
-          </View>
-          <Text style={styles.permissionTitle}>Open on a device</Text>
-          <Text style={styles.permissionSubtitle}>
-            Camera capture is best experienced on iOS or Android. Scan the QR
-            code in Expo Go to try it.
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
-  // Preview mode — show the captured photo with Retake / Analyze
+  // ---------------------------------------------------------------
+  // PHOTO PREVIEW (after capture or library pick)
+  // ---------------------------------------------------------------
   if (photoUri) {
     return (
       <View style={styles.root}>
@@ -177,7 +140,7 @@ export default function CameraScreen() {
             ]}
           >
             <RotateCcw size={16} color="#FFFFFF" strokeWidth={2} />
-            <Text style={styles.previewActionGhostLabel}>Retake</Text>
+            <Text style={styles.previewActionGhostLabel}>Change</Text>
           </Pressable>
 
           <Pressable
@@ -208,7 +171,7 @@ export default function CameraScreen() {
             >
               <ActivityIndicator size="large" color={theme.colors.accent} />
               <Text style={styles.loadingText}>
-                Gemini is redesigning your space…
+                Gemini is analyzing your space…
               </Text>
             </MotiView>
           </View>
@@ -217,7 +180,87 @@ export default function CameraScreen() {
     );
   }
 
-  // Live camera mode
+  // ---------------------------------------------------------------
+  // ENTRY SCREEN — shown when:
+  //  - permission state is still loading, OR
+  //  - permission is denied/not-asked, OR
+  //  - we're on web (expo-camera has limited web support)
+  // Always offers "Choose from photos" as a guaranteed-working path.
+  // ---------------------------------------------------------------
+  const cameraUnavailable =
+    Platform.OS === "web" || !permission || !permission.granted;
+
+  if (cameraUnavailable) {
+    const showGrant =
+      Platform.OS !== "web" && permission && !permission.granted;
+
+    return (
+      <View style={[styles.root, styles.permissionRoot]}>
+        <MotiView
+          from={{ opacity: 0, translateY: 8 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          transition={{ type: "timing", duration: 400 }}
+          style={styles.permissionContent}
+        >
+          <View style={styles.permissionIcon}>
+            <CameraIcon
+              size={28}
+              color={theme.colors.primary}
+              strokeWidth={1.75}
+            />
+          </View>
+          <Text style={styles.permissionTitle}>
+            {Platform.OS === "web" ? "Choose a room photo" : "Capture your room"}
+          </Text>
+          <Text style={styles.permissionSubtitle}>
+            {Platform.OS === "web"
+              ? "Camera capture isn't available in the web preview. Pick a photo of your room from your library and we'll redesign it."
+              : "Take a fresh photo with your camera, or pick an existing one from your library."}
+          </Text>
+
+          {showGrant ? (
+            <Pressable
+              onPress={requestPermission}
+              style={({ pressed }) => [
+                styles.permissionButton,
+                pressed && { opacity: 0.85 },
+              ]}
+            >
+              <CameraIcon size={16} color="#FFFFFF" strokeWidth={2.2} />
+              <Text style={styles.permissionButtonLabel}>Use camera</Text>
+            </Pressable>
+          ) : null}
+
+          <Pressable
+            onPress={pickFromLibrary}
+            style={({ pressed }) => [
+              showGrant ? styles.permissionButtonSecondary : styles.permissionButton,
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <ImagePlus
+              size={16}
+              color={showGrant ? theme.colors.primary : "#FFFFFF"}
+              strokeWidth={2.2}
+            />
+            <Text
+              style={
+                showGrant
+                  ? styles.permissionButtonSecondaryLabel
+                  : styles.permissionButtonLabel
+              }
+            >
+              Choose from photos
+            </Text>
+          </Pressable>
+        </MotiView>
+      </View>
+    );
+  }
+
+  // ---------------------------------------------------------------
+  // LIVE CAMERA MODE (native + permission granted)
+  // ---------------------------------------------------------------
   const toggleFacing = () => {
     Haptics.selectionAsync();
     setFacing((f) => (f === "back" ? "front" : "back"));
@@ -291,7 +334,18 @@ export default function CameraScreen() {
         style={[styles.bottomBar, { paddingBottom: bottomPad }]}
       >
         <View style={styles.bottomRow}>
-          <View style={styles.sideSlot} />
+          <View style={styles.sideSlot}>
+            <Pressable
+              onPress={pickFromLibrary}
+              style={({ pressed }) => [
+                styles.iconButtonLarge,
+                pressed && { opacity: 0.7 },
+              ]}
+              hitSlop={12}
+            >
+              <ImagePlus size={22} color="#FFFFFF" strokeWidth={2} />
+            </Pressable>
+          </View>
 
           <Pressable
             onPress={capture}
@@ -341,6 +395,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: theme.spacing.md,
     maxWidth: 320,
+    width: "100%",
   },
   permissionIcon: {
     width: 72,
@@ -363,6 +418,11 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.sm,
   },
   permissionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    width: "100%",
     backgroundColor: theme.colors.primary,
     paddingHorizontal: theme.spacing.xl,
     paddingVertical: 14,
@@ -372,6 +432,25 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
     fontSize: 15,
     color: theme.colors.primaryForeground,
+    letterSpacing: 0.2,
+  },
+  permissionButtonSecondary: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    width: "100%",
+    backgroundColor: "transparent",
+    paddingHorizontal: theme.spacing.xl,
+    paddingVertical: 14,
+    borderRadius: theme.radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.border,
+  },
+  permissionButtonSecondaryLabel: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 15,
+    color: theme.colors.primary,
     letterSpacing: 0.2,
   },
 
