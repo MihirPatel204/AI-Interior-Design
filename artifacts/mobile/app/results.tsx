@@ -29,6 +29,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ComparisonSlider } from "@/components/ComparisonSlider";
+import { FURNITURE_THEMES } from "@/constants/styles";
 import { theme } from "@/constants/theme";
 import {
   generateRedesign,
@@ -49,14 +50,7 @@ interface Section {
   icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
 }
 
-const STYLES: { id: string; label: string }[] = [
-  { id: "Japandi", label: "Japandi" },
-  { id: "Industrial", label: "Industrial" },
-  { id: "Boho", label: "Boho" },
-  { id: "Scandinavian", label: "Scandi" },
-  { id: "Mid-Century Modern", label: "Mid-Century" },
-  { id: "Minimalist", label: "Minimalist" },
-];
+const RESULTS_STYLES = FURNITURE_THEMES.filter((t) => !t.proOnly);
 
 function parseAnalysis(raw: string): Section[] {
   const text = raw.trim();
@@ -105,7 +99,9 @@ export default function ResultsScreen() {
 
   const sections = useMemo(() => parseAnalysis(raw), [raw]);
 
-  const [selectedStyle, setSelectedStyle] = useState<string>(STYLES[0]!.id);
+  const [selectedStyle, setSelectedStyle] = useState<string>(
+    RESULTS_STYLES[0]!.name,
+  );
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState<{ uri: string; mimeType: string } | null>(
     null,
@@ -281,29 +277,36 @@ export default function ResultsScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.styleRow}
           >
-            {STYLES.map((s) => {
-              const active = selectedStyle === s.id;
+            {RESULTS_STYLES.map((s) => {
+              const active = selectedStyle === s.name;
               return (
                 <Pressable
                   key={s.id}
                   onPress={() => {
                     Haptics.selectionAsync();
-                    setSelectedStyle(s.id);
+                    setSelectedStyle(s.name);
                   }}
                   style={({ pressed }) => [
-                    styles.styleChip,
-                    active && styles.styleChipActive,
-                    pressed && { opacity: 0.8 },
+                    styles.styleThumb,
+                    active && styles.styleThumbActive,
+                    pressed && { opacity: 0.85 },
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.styleChipLabel,
-                      active && styles.styleChipLabelActive,
-                    ]}
-                  >
-                    {s.label}
+                  <Image
+                    source={s.hero}
+                    style={StyleSheet.absoluteFillObject}
+                    contentFit="cover"
+                    transition={200}
+                  />
+                  <View style={styles.styleThumbScrim} />
+                  <Text style={styles.styleThumbLabel} numberOfLines={1}>
+                    {s.name}
                   </Text>
+                  {active ? (
+                    <View style={styles.styleThumbCheck}>
+                      <Check size={12} color={theme.colors.primary} strokeWidth={2.6} />
+                    </View>
+                  ) : null}
                 </Pressable>
               );
             })}
@@ -528,31 +531,44 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   styleRow: {
-    gap: theme.spacing.sm,
+    gap: 10,
     paddingVertical: 4,
     paddingRight: theme.spacing.md,
   },
-  styleChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: theme.radius.pill,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.16)",
+  styleThumb: {
+    width: 96,
+    height: 124,
+    borderRadius: theme.radius.md,
+    overflow: "hidden",
+    justifyContent: "flex-end",
+    backgroundColor: "#1A1A1A",
+    borderWidth: 2,
+    borderColor: "transparent",
   },
-  styleChipActive: {
-    backgroundColor: theme.colors.accent,
+  styleThumbActive: {
     borderColor: theme.colors.accent,
   },
-  styleChipLabel: {
-    fontFamily: "Inter_500Medium",
-    fontSize: 14,
-    color: "rgba(255,255,255,0.85)",
+  styleThumbScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.30)",
+  },
+  styleThumbLabel: {
+    margin: 8,
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 12,
+    color: "#FFFFFF",
     letterSpacing: 0.2,
   },
-  styleChipLabelActive: {
-    color: theme.colors.primary,
-    fontFamily: "Inter_700Bold",
+  styleThumbCheck: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.accent,
   },
   generateButton: {
     marginTop: theme.spacing.md,

@@ -6,3 +6,51 @@ id = "a_kJS6aviQ5hIzgA4mQAs"
 uri = "file://artifacts/mobile/assets/images/icon.png"
 type = "image"
 title = "InteriorAI app icon"
+
+[[generated]]
+id = "IMSHhapTjPTG49G0ClyIR"
+uri = "file://artifacts/mobile/assets/styles/japandi.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "4TdAz9OBhDxrD74USuOY0"
+uri = "file://artifacts/mobile/assets/styles/industrial.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "0_rBn1bPo-rEpMPci95Ml"
+uri = "file://artifacts/mobile/assets/styles/boho.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "7VSkhRgxJkB7u04EO-XfB"
+uri = "file://artifacts/mobile/assets/styles/scandi.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "w6Vf62iXWiA-DbMqAV-fY"
+uri = "file://artifacts/mobile/assets/styles/midcentury.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "iWoLaA5J567U5WB0BES6f"
+uri = "file://artifacts/mobile/assets/styles/minimalist.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "zdYyleLjMx3On6bKZj-xE"
+uri = "file://artifacts/mobile/assets/styles/artdeco.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "flJ6850IA7lcHtBXdVFLe"
+uri = "file://artifacts/mobile/assets/styles/coastal.png"
+type = "image"
+title = "generated_image"

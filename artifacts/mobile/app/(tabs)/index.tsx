@@ -1,10 +1,12 @@
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import {
   ArrowRight,
   Camera as CameraIcon,
   Crown,
+  Lock,
   Sparkles,
   Wand2,
   type LucideIcon,
@@ -21,26 +23,12 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/constants/theme";
+import { FURNITURE_THEMES } from "@/constants/styles";
 import {
   getFreeRenderCount,
   isUserPro,
   SUBSCRIPTION_CONSTANTS,
 } from "@/services/subscriptionService";
-
-interface StyleCard {
-  id: string;
-  title: string;
-  blurb: string;
-  colors: [string, string];
-}
-
-const STYLE_CARDS: StyleCard[] = [
-  { id: "Japandi", title: "Japandi", blurb: "Calm · Wood · Linen", colors: ["#3a3631", "#1a1a1a"] },
-  { id: "Industrial", title: "Industrial", blurb: "Steel · Brick · Edison", colors: ["#2b2b2e", "#0e0e10"] },
-  { id: "Boho", title: "Boho", blurb: "Rattan · Warm · Eclectic", colors: ["#5a3a25", "#231510"] },
-  { id: "Scandi", title: "Scandinavian", blurb: "Bright · Airy · Soft", colors: ["#4a5660", "#1a2129"] },
-  { id: "Mid-Century", title: "Mid-Century", blurb: "Walnut · Brass · Geometric", colors: ["#6b4a2a", "#2a1c10"] },
-];
 
 const STEPS: { icon: LucideIcon; title: string; body: string }[] = [
   {
@@ -204,38 +192,67 @@ export default function HomeScreen() {
             decelerationRate="fast"
             snapToInterval={172}
           >
-            {STYLE_CARDS.map((s, idx) => (
-              <MotiView
-                key={s.id}
-                from={{ opacity: 0, translateY: 14 }}
-                animate={{ opacity: 1, translateY: 0 }}
-                transition={{
-                  type: "timing",
-                  duration: 400,
-                  delay: 80 + idx * 60,
-                }}
-              >
-                <Pressable
-                  onPress={goCamera}
-                  style={({ pressed }) => [
-                    styles.styleCard,
-                    pressed && { opacity: 0.92, transform: [{ scale: 0.98 }] },
-                  ]}
+            {FURNITURE_THEMES.map((s, idx) => {
+              const locked = s.proOnly && !pro;
+              return (
+                <MotiView
+                  key={s.id}
+                  from={{ opacity: 0, translateY: 14 }}
+                  animate={{ opacity: 1, translateY: 0 }}
+                  transition={{
+                    type: "timing",
+                    duration: 400,
+                    delay: 80 + idx * 50,
+                  }}
                 >
-                  <LinearGradient
-                    colors={s.colors}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={StyleSheet.absoluteFillObject}
-                  />
-                  <View style={styles.styleCardGlow} />
-                  <View style={styles.styleCardContent}>
-                    <Text style={styles.styleCardBlurb}>{s.blurb}</Text>
-                    <Text style={styles.styleCardTitle}>{s.title}</Text>
-                  </View>
-                </Pressable>
-              </MotiView>
-            ))}
+                  <Pressable
+                    onPress={() => {
+                      if (locked) {
+                        Haptics.selectionAsync();
+                        router.push("/paywall");
+                      } else {
+                        goCamera();
+                      }
+                    }}
+                    style={({ pressed }) => [
+                      styles.styleCard,
+                      pressed && {
+                        opacity: 0.94,
+                        transform: [{ scale: 0.98 }],
+                      },
+                    ]}
+                  >
+                    <Image
+                      source={s.hero}
+                      style={StyleSheet.absoluteFillObject}
+                      contentFit="cover"
+                      transition={250}
+                    />
+                    <LinearGradient
+                      colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.78)"]}
+                      start={{ x: 0.5, y: 0.35 }}
+                      end={{ x: 0.5, y: 1 }}
+                      style={StyleSheet.absoluteFillObject}
+                    />
+
+                    {locked ? (
+                      <View style={styles.lockBadge}>
+                        <Lock size={11} color={theme.colors.primary} strokeWidth={2.4} />
+                        <Text style={styles.lockBadgeText}>PRO</Text>
+                      </View>
+                    ) : null}
+
+                    <View style={styles.styleCardContent}>
+                      <Text style={styles.styleCardBlurb}>{s.blurb}</Text>
+                      <Text style={styles.styleCardTitle}>{s.name}</Text>
+                      <Text style={styles.styleCardEra} numberOfLines={1}>
+                        {s.era}
+                      </Text>
+                    </View>
+                  </Pressable>
+                </MotiView>
+              );
+            })}
           </ScrollView>
         </View>
 
@@ -470,30 +487,21 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   styleCard: {
-    width: 160,
-    height: 200,
+    width: 168,
+    height: 224,
     borderRadius: theme.radius.lg,
     overflow: "hidden",
     justifyContent: "flex-end",
     backgroundColor: "#1A1A1A",
-  },
-  styleCardGlow: {
-    position: "absolute",
-    top: -40,
-    right: -40,
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: "rgba(212,175,55,0.10)",
   },
   styleCardContent: {
     padding: theme.spacing.md,
   },
   styleCardBlurb: {
     fontFamily: "Inter_500Medium",
-    fontSize: 11,
-    color: "rgba(255,255,255,0.65)",
-    letterSpacing: 1,
+    fontSize: 10,
+    color: "rgba(255,255,255,0.7)",
+    letterSpacing: 1.2,
     textTransform: "uppercase",
     marginBottom: 6,
   },
@@ -502,6 +510,31 @@ const styles = StyleSheet.create({
     fontSize: 19,
     letterSpacing: -0.2,
     color: "#FFFFFF",
+  },
+  styleCardEra: {
+    marginTop: 4,
+    fontFamily: "Inter_400Regular",
+    fontSize: 11,
+    color: "rgba(255,255,255,0.55)",
+    letterSpacing: 0.2,
+  },
+  lockBadge: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: theme.radius.pill,
+    backgroundColor: theme.colors.accent,
+  },
+  lockBadgeText: {
+    fontFamily: "Inter_700Bold",
+    fontSize: 9,
+    letterSpacing: 1,
+    color: theme.colors.primary,
   },
 
   // ---- Pro upsell
