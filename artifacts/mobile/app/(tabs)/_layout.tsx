@@ -1,15 +1,8 @@
 import { BlurView } from "expo-blur";
-import * as Haptics from "expo-haptics";
 import { Tabs } from "expo-router";
-import { Camera, Home, User } from "lucide-react-native";
+import { Camera, Home, MessageSquare, User } from "lucide-react-native";
 import React from "react";
-import {
-  Platform,
-  Pressable,
-  StyleSheet,
-  View,
-  type GestureResponderEvent,
-} from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 
 import { theme } from "@/constants/theme";
 
@@ -65,22 +58,17 @@ export default function TabLayout() {
         name="camera"
         options={{
           title: "Camera",
-          tabBarIcon: () => (
-            <View style={styles.cameraButton}>
-              <Camera size={24} color={theme.colors.accent} strokeWidth={2.2} />
-            </View>
+          tabBarIcon: ({ focused }) => (
+            <TabIcon Icon={Camera} focused={focused} />
           ),
-          tabBarButton: (props) => (
-            <Pressable
-              accessibilityRole="button"
-              onPress={(e: GestureResponderEvent) => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                props.onPress?.(e);
-              }}
-              style={styles.cameraButtonWrap}
-            >
-              {props.children}
-            </Pressable>
+        }}
+      />
+      <Tabs.Screen
+        name="chat"
+        options={{
+          title: "Chat",
+          tabBarIcon: ({ focused }) => (
+            <TabIcon Icon={MessageSquare} focused={focused} />
           ),
         }}
       />
@@ -138,26 +126,5 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     backgroundColor: theme.colors.primary,
-  },
-  cameraButtonWrap: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cameraButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: theme.colors.primary,
-    marginTop: -22,
-    borderWidth: 4,
-    borderColor: "#FFFFFF",
-    shadowColor: theme.colors.primary,
-    shadowOpacity: 0.28,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
   },
 });

@@ -34,6 +34,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme } from "@/constants/theme";
 import { analyzeRoomWithGemini, MissingApiKeyError } from "@/services/aiService";
 
+const FLOATING_TAB_BAR_OFFSET = Platform.OS === "ios" ? 104 : 92;
+
 export default function CameraScreen() {
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
@@ -90,7 +92,8 @@ export default function CameraScreen() {
   };
 
   const topPad = Math.max(insets.top, 16);
-  const bottomPad = Math.max(insets.bottom, 24);
+  // Keep camera controls above the floating tab bar used by the tabs layout.
+  const bottomPad = Math.max(insets.bottom, 24) + FLOATING_TAB_BAR_OFFSET;
 
   // ---------------------------------------------------------------
   // PHOTO PREVIEW (after capture or library pick)

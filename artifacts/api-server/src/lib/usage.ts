@@ -13,6 +13,7 @@ interface DeviceRecord {
   deviceId: string;
   renders: number;
   analyses: number;
+  chats: number;
   pro: boolean;
   firstSeenAt: string;
   lastSeenAt: string;
@@ -28,6 +29,7 @@ function touch(deviceId: string): DeviceRecord {
       deviceId,
       renders: 0,
       analyses: 0,
+      chats: 0,
       pro: false,
       firstSeenAt: now,
       lastSeenAt: now,
@@ -42,6 +44,7 @@ export function getUsage(deviceId: string): {
   deviceId: string;
   renders: number;
   analyses: number;
+  chats: number;
   pro: boolean;
   remaining: number;
   limit: number;
@@ -54,6 +57,7 @@ export function getUsage(deviceId: string): {
     deviceId: rec.deviceId,
     renders: rec.renders,
     analyses: rec.analyses,
+    chats: rec.chats,
     pro: rec.pro,
     remaining: rec.pro ? -1 : remaining,
     limit: FREE_RENDER_LIMIT,
@@ -74,6 +78,11 @@ export function incrementRender(deviceId: string): void {
 export function incrementAnalysis(deviceId: string): void {
   const rec = touch(deviceId);
   rec.analyses += 1;
+}
+
+export function incrementChat(deviceId: string): void {
+  const rec = touch(deviceId);
+  rec.chats += 1;
 }
 
 export function setPro(deviceId: string, pro: boolean): void {

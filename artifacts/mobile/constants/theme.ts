@@ -2,10 +2,10 @@ import colors from "./colors";
 
 export const theme = {
   colors: {
+    ...colors.light,
     primary: "#1A1A1A",
     secondary: "#F5F5F7",
     accent: "#D4AF37",
-    ...colors.light,
   },
   spacing: {
     xs: 4,

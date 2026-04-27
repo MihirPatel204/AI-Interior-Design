@@ -9,6 +9,7 @@ import {
   Check,
   Download,
   Lightbulb,
+  MessageCircle,
   Move,
   Palette,
   Sofa,
@@ -187,6 +188,17 @@ export default function ResultsScreen() {
     }
   };
 
+  const handleOpenChat = () => {
+    Haptics.selectionAsync();
+    router.push({
+      pathname: "/(tabs)/chat",
+      params: {
+        analysis: raw,
+        style: selectedStyle,
+      },
+    } as never);
+  };
+
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ headerShown: false }} />
@@ -271,6 +283,21 @@ export default function ResultsScreen() {
             Pick a style. Gemini will reimagine your room while keeping the
             walls and windows intact.
           </Text>
+
+          <Pressable
+            onPress={handleOpenChat}
+            style={({ pressed }) => [
+              styles.chatButton,
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <MessageCircle
+              size={16}
+              color="rgba(255,255,255,0.95)"
+              strokeWidth={2.2}
+            />
+            <Text style={styles.chatButtonLabel}>Ask Furniture Chatbot</Text>
+          </Pressable>
 
           <ScrollView
             horizontal
@@ -529,6 +556,25 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     color: "rgba(255,255,255,0.65)",
     marginBottom: theme.spacing.md,
+  },
+  chatButton: {
+    marginBottom: theme.spacing.md,
+    borderRadius: theme.radius.pill,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "rgba(255,255,255,0.09)",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(255,255,255,0.28)",
+  },
+  chatButtonLabel: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
+    color: "rgba(255,255,255,0.96)",
+    letterSpacing: 0.2,
   },
   styleRow: {
     gap: 10,
