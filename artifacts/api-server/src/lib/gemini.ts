@@ -7,9 +7,7 @@ const GEMINI_TEXT_MODEL_CANDIDATES = [
 ] as const;
 
 const GEMINI_IMAGE_MODEL_CANDIDATES = [
-  "gemini-2.5-flash-image",
-  "gemini-2.0-flash-preview-image-generation",
-  "gemini-2.0-flash-exp-image-generation",
+  "gemini-2.5-flash-image"
 ] as const;
 
 const DEFAULT_TEXT_MODEL = GEMINI_TEXT_MODEL_CANDIDATES[0];

@@ -31,7 +31,7 @@ Open terminal 1 at workspace root:
 
 ```powershell
 $env:PORT = "3000"
-$env:GEMINI_API_KEY = "AIzaSyBKmwQ05-eIqHFSNS1BL7i1uwoWPF1Enrs"
+$env:GEMINI_API_KEY = "<YOUR_GEMINI_API_KEY>"
 pnpm --filter @workspace/api-server run build
 pnpm --filter @workspace/api-server run start
 ```
@@ -42,7 +42,7 @@ Open terminal 1 at workspace root:
 
 ```cmd
 set PORT=3000
-set GEMINI_API_KEY=AIzaSyBKmwQ05-eIqHFSNS1BL7i1uwoWPF1Enrs
+set GEMINI_API_KEY=<YOUR_GEMINI_API_KEY>
 pnpm --filter @workspace/api-server run build
 pnpm --filter @workspace/api-server run start
 ```
@@ -57,6 +57,35 @@ Expected response:
 
 ```json
 {"status":"ok"}
+```
+
+## Deploy API server to Render
+
+Create a new Web Service and connect this repo.
+
+Build command:
+
+```bash
+corepack enable
+pnpm install
+pnpm --filter @workspace/api-server run build
+```
+
+Start command:
+
+```bash
+pnpm --filter @workspace/api-server run start
+```
+
+Environment variables (Render dashboard):
+
+- `GEMINI_API_KEY`: your Gemini key (do not commit it)
+- `PORT`: optional; Render sets it automatically
+
+Health check:
+
+```text
+https://YOUR-RENDER-URL/api/healthz
 ```
 
 ## 3) Start mobile app (PowerShell)
