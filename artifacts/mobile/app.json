@@ -16,7 +16,19 @@
     "ios": {
       "supportsTablet": false
     },
-    "android": {},
+    "android": {
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO"
+      ],
+      "package": "com.mihir_code.mobile"
+    },
     "web": {
       "favicon": "./assets/images/icon.png"
     },
@@ -53,6 +65,11 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "cf6015cf-40f6-4ab3-afbf-09e2999c3aea"
+      }
     }
   }
 }
